@@ -1,0 +1,41 @@
+<policies>
+    <inbound>
+        <base />
+        <set-variable name="ClientId" value="@(context.Request.Headers.GetValueOrDefault("ClientId", ""))" />
+        <set-variable name="ClientSecret" value="@(context.Request.Headers.GetValueOrDefault("ClientSecret", ""))" />
+        <set-header name="Content-Type" exists-action="override">
+            <value>application/x-www-form-urlencoded</value>
+        </set-header>
+        <set-body>@{
+            string grant_type = "client_credentials";
+            string scope = "de3de3d5-106b-4697-9e80-66e9a01ec5bb/.default";
+            
+            return "grant_type=" + grant_type +"&scope=" + scope;
+        }</set-body>
+        <choose>
+            <when condition="@( !(context.Variables["ClientId"] == "") && !(context.Variables["ClientSecret"] == "") )">
+                <set-header name="Authorization" exists-action="skip">
+                    <value>@{
+                        return "Basic " + Convert.ToBase64String(
+                            System.Text.Encoding.UTF8.GetBytes(
+                                string.Format("{0}:{1}", 
+                                    context.Variables["ClientId"], 
+                                    context.Variables["ClientSecret"]
+                                )
+                            )
+                        );
+                    }</value>
+                </set-header>
+            </when>
+        </choose>
+    </inbound>
+    <backend>
+        <base />
+    </backend>
+    <outbound>
+        <base />
+    </outbound>
+    <on-error>
+        <base />
+    </on-error>
+</policies>

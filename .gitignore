@@ -1,0 +1,13 @@
+
+.DS_Store
+.history/
+.vs/
+.vscode/
+.DS_Store
+dist/
+node_modules/
+src/config.design.json
+src/config.publish.json
+src/config.runtime.json
+
+Monetization/app/.env

@@ -1,0 +1,15 @@
+{
+    "IsEncrypted": false,
+    "Host": {
+        "CORS": "*"
+    },
+    "Values": {
+        "AzureWebJobsStorage": "",
+        "FUNCTIONS_WORKER_RUNTIME": "dotnet",
+        "apimanagement": "",
+        "AzureADAppTenantId": "",
+        "AzureADAppClientId": "",
+        "AzureADAppClientSecret": "",
+        "AzureADAppRedirectUri": ""
+    }
+}

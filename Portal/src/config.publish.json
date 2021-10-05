@@ -1,0 +1,6 @@
+{
+    "environment": "publishing",
+    "managementApiUrl": "",
+    "managementApiAccessToken": "",
+    "useHipCaptcha": false
+}

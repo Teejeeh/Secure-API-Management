@@ -1,0 +1,28 @@
+openapi: 3.0.1
+info:
+  title: Authentication
+  description: ''
+  version: '1.0'
+servers:
+  - url: https://cfs-apim.azure-api.net/auth
+paths:
+  /token:
+    post:
+      summary: token
+      operationId: token
+      responses:
+        '200':
+          description: 
+components:
+  securitySchemes:
+    apiKeyHeader:
+      type: apiKey
+      name: Ocp-Apim-Subscription-Key
+      in: header
+    apiKeyQuery:
+      type: apiKey
+      name: subscription-key
+      in: query
+security:
+  - apiKeyHeader: [ ]
+  - apiKeyQuery: [ ]

@@ -1,0 +1,3 @@
+<validate-jwt header-name="Authorization" failed-validation-httpcode="401" failed-validation-error-message="Unauthorized API Call">
+    <openid-config url="https://login.microsoftonline.com/b4f25762-0c5d-46f6-b656-14c4720c3d4f/v2.0/.well-known/openid-configuration" />
+</validate-jwt>

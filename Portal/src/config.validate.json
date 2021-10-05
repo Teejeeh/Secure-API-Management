@@ -1,0 +1,32 @@
+{
+    "environment": "validation",
+    "urls": {
+        "home": "https://ashy-coast-04a9f2403.azurestaticapps.net/",
+        "signin": "https://ashy-coast-04a9f2403.azurestaticapps.net//signin",
+        "signup": "https://ashy-coast-04a9f2403.azurestaticapps.net//signup/"
+    },
+    "signin": {
+        "firstName": "John",
+        "lastName": "Doe",
+        "credentials": {
+            "basic": {
+                "email": "johndoe@contoso.com",
+                "password": "< password >"
+            },
+            "aadB2C": {
+                "email": "johndoe@contoso.com",
+                "password": "< password >"
+            }
+        }
+    },
+    "signup": {
+        "firstName": "John",
+        "lastName": "Doe",
+        "credentials": {
+            "basic": {
+                "email": "johndoe@contoso.com",
+                "password": "< password >"
+            }
+        }
+    }
+}

@@ -1,0 +1,1770 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.4.613.9944",
+      "templateHash": "17503429849335962685"
+    }
+  },
+  "parameters": {
+    "publisherEmail": {
+      "type": "string",
+      "defaultValue": "constoso@contoso.com",
+      "minLength": 1,
+      "metadata": {
+        "description": "The email address of the owner of the service"
+      }
+    },
+    "publisherName": {
+      "type": "string",
+      "defaultValue": "apimPublisher",
+      "minLength": 1,
+      "metadata": {
+        "description": "The name of the owner of the service"
+      }
+    },
+    "sku": {
+      "type": "string",
+      "defaultValue": "Developer",
+      "allowedValues": [
+        "Developer",
+        "Premium"
+      ],
+      "metadata": {
+        "description": "The pricing tier of this API Management service"
+      }
+    },
+    "skuCount": {
+      "type": "int",
+      "defaultValue": 1,
+      "metadata": {
+        "description": "The instance size of this API Management service.This should be in multiple of zones getting deployed."
+      }
+    },
+    "prefix": {
+      "type": "string",
+      "defaultValue": "prefix",
+      "metadata": {
+        "description": "prefix"
+      }
+    },
+    "AzureADAppTenantId": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure AD Tenant ID"
+      }
+    },
+    "AzureADAppClientId": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure AD client ID"
+      }
+    },
+    "AzureADAppClientSecret": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure AD client Secret"
+      }
+    }
+  },
+  "functions": [],
+  "variables": {
+    "subnetName": "apim",
+    "virtualNetworkName": "[format('{0}-vNet', parameters('prefix'))]",
+    "publicIpName": "[format('{0}-IP', parameters('prefix'))]",
+    "dnsLabelPrefix": "[toLower(format('{0}-{1}', variables('publicIpName'), uniqueString(resourceGroup().id)))]",
+    "subnetRef": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('virtualNetworkName'), variables('subnetName'))]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Network/networkSecurityGroups",
+      "apiVersion": "2020-06-01",
+      "name": "[format('{0}-NsG', parameters('prefix'))]",
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "securityRules": [
+          {
+            "name": "Client_communication_to_API_Management",
+            "properties": {
+              "protocol": "Tcp",
+              "sourcePortRange": "*",
+              "destinationPortRange": "80",
+              "sourceAddressPrefix": "Internet",
+              "destinationAddressPrefix": "VirtualNetwork",
+              "access": "Allow",
+              "priority": 100,
+              "direction": "Inbound"
+            }
+          },
+          {
+            "name": "Secure_Client_communication_to_API_Management",
+            "properties": {
+              "protocol": "Tcp",
+              "sourcePortRange": "*",
+              "destinationPortRange": "443",
+              "sourceAddressPrefix": "Internet",
+              "destinationAddressPrefix": "VirtualNetwork",
+              "access": "Allow",
+              "priority": 110,
+              "direction": "Inbound"
+            }
+          },
+          {
+            "name": "Management_endpoint_for_Azure_portal_and_Powershell",
+            "properties": {
+              "protocol": "Tcp",
+              "sourcePortRange": "*",
+              "destinationPortRange": "3443",
+              "sourceAddressPrefix": "ApiManagement",
+              "destinationAddressPrefix": "VirtualNetwork",
+              "access": "Allow",
+              "priority": 120,
+              "direction": "Inbound"
+            }
+          },
+          {
+            "name": "Dependency_on_Redis_Cache",
+            "properties": {
+              "protocol": "Tcp",
+              "sourcePortRange": "*",
+              "destinationPortRange": "6381-6383",
+              "sourceAddressPrefix": "VirtualNetwork",
+              "destinationAddressPrefix": "VirtualNetwork",
+              "access": "Allow",
+              "priority": 130,
+              "direction": "Inbound"
+            }
+          },
+          {
+            "name": "Dependency_to_sync_Rate_Limit_Inbound",
+            "properties": {
+              "protocol": "Tcp",
+              "sourcePortRange": "*",
+              "destinationPortRange": "4290",
+              "sourceAddressPrefix": "VirtualNetwork",
+              "destinationAddressPrefix": "VirtualNetwork",
+              "access": "Allow",
+              "priority": 135,
+              "direction": "Inbound"
+            }
+          },
+          {
+            "name": "Dependency_on_Azure_SQL",
+            "properties": {
+              "protocol": "Tcp",
+              "sourcePortRange": "*",
+              "destinationPortRange": "1433",
+              "sourceAddressPrefix": "VirtualNetwork",
+              "destinationAddressPrefix": "Sql",
+              "access": "Allow",
+              "priority": 140,
+              "direction": "Outbound"
+            }
+          },
+          {
+            "name": "Dependency_for_Log_to_event_Hub_policy",
+            "properties": {
+              "protocol": "*",
+              "sourcePortRange": "*",
+              "destinationPortRange": "5671",
+              "sourceAddressPrefix": "VirtualNetwork",
+              "destinationAddressPrefix": "EventHub",
+              "access": "Allow",
+              "priority": 150,
+              "direction": "Outbound"
+            }
+          },
+          {
+            "name": "Dependency_on_Redis_Cache_outbound",
+            "properties": {
+              "protocol": "Tcp",
+              "sourcePortRange": "*",
+              "destinationPortRange": "6381-6383",
+              "sourceAddressPrefix": "VirtualNetwork",
+              "destinationAddressPrefix": "VirtualNetwork",
+              "access": "Allow",
+              "priority": 160,
+              "direction": "Outbound"
+            }
+          },
+          {
+            "name": "Depenedency_To_sync_RateLimit_Outbound",
+            "properties": {
+              "protocol": "Tcp",
+              "sourcePortRange": "*",
+              "destinationPortRange": "4290",
+              "sourceAddressPrefix": "VirtualNetwork",
+              "destinationAddressPrefix": "VirtualNetwork",
+              "access": "Allow",
+              "priority": 165,
+              "direction": "Outbound"
+            }
+          },
+          {
+            "name": "Dependency_on_Azure_File_Share_for_GIT",
+            "properties": {
+              "protocol": "Tcp",
+              "sourcePortRange": "*",
+              "destinationPortRange": "445",
+              "sourceAddressPrefix": "VirtualNetwork",
+              "destinationAddressPrefix": "Storage",
+              "access": "Allow",
+              "priority": 170,
+              "direction": "Outbound"
+            }
+          },
+          {
+            "name": "Azure_Infrastructure_Load_Balancer",
+            "properties": {
+              "protocol": "Tcp",
+              "sourcePortRange": "*",
+              "destinationPortRange": "6390",
+              "sourceAddressPrefix": "AzureLoadBalancer",
+              "destinationAddressPrefix": "VirtualNetwork",
+              "access": "Allow",
+              "priority": 180,
+              "direction": "Inbound"
+            }
+          },
+          {
+            "name": "Publish_DiagnosticLogs_And_Metrics",
+            "properties": {
+              "description": "APIM Logs and Metrics for consumption by admins and your IT team are all part of the management plane",
+              "protocol": "Tcp",
+              "sourcePortRange": "*",
+              "sourceAddressPrefix": "VirtualNetwork",
+              "destinationAddressPrefix": "AzureMonitor",
+              "access": "Allow",
+              "priority": 185,
+              "direction": "Outbound",
+              "destinationPortRanges": [
+                "443",
+                "12000",
+                "1886"
+              ]
+            }
+          },
+          {
+            "name": "Connect_To_SMTP_Relay_For_SendingEmails",
+            "properties": {
+              "description": "APIM features the ability to generate email traffic as part of the data plane and the management plane",
+              "protocol": "Tcp",
+              "sourcePortRange": "*",
+              "sourceAddressPrefix": "VirtualNetwork",
+              "destinationAddressPrefix": "Internet",
+              "access": "Allow",
+              "priority": 190,
+              "direction": "Outbound",
+              "destinationPortRanges": [
+                "25",
+                "587",
+                "25028"
+              ]
+            }
+          },
+          {
+            "name": "Authenticate_To_Azure_Active_Directory",
+            "properties": {
+              "description": "Connect to Azure Active Directory for Developer Portal Authentication or for Oauth2 flow during any Proxy Authentication",
+              "protocol": "Tcp",
+              "sourcePortRange": "*",
+              "sourceAddressPrefix": "VirtualNetwork",
+              "destinationAddressPrefix": "AzureActiveDirectory",
+              "access": "Allow",
+              "priority": 200,
+              "direction": "Outbound",
+              "destinationPortRanges": [
+                "80",
+                "443"
+              ]
+            }
+          },
+          {
+            "name": "Dependency_on_Azure_Storage",
+            "properties": {
+              "description": "APIM service dependency on Azure Blob and Azure Table Storage",
+              "protocol": "Tcp",
+              "sourcePortRange": "*",
+              "destinationPortRange": "443",
+              "sourceAddressPrefix": "VirtualNetwork",
+              "destinationAddressPrefix": "Storage",
+              "access": "Allow",
+              "priority": 100,
+              "direction": "Outbound"
+            }
+          },
+          {
+            "name": "Publish_Monitoring_Logs",
+            "properties": {
+              "protocol": "Tcp",
+              "sourcePortRange": "*",
+              "destinationPortRange": "443",
+              "sourceAddressPrefix": "VirtualNetwork",
+              "destinationAddressPrefix": "AzureCloud",
+              "access": "Allow",
+              "priority": 300,
+              "direction": "Outbound"
+            }
+          },
+          {
+            "name": "Access_KeyVault",
+            "properties": {
+              "description": "Allow APIM service control plane access to KeyVault to refresh secrets",
+              "protocol": "Tcp",
+              "sourcePortRange": "*",
+              "sourceAddressPrefix": "VirtualNetwork",
+              "destinationAddressPrefix": "AzureKeyVault",
+              "access": "Allow",
+              "priority": 350,
+              "direction": "Outbound",
+              "destinationPortRanges": [
+                "443"
+              ]
+            }
+          },
+          {
+            "name": "Deny_All_Internet_Outbound",
+            "properties": {
+              "protocol": "*",
+              "sourcePortRange": "*",
+              "destinationPortRange": "*",
+              "sourceAddressPrefix": "VirtualNetwork",
+              "destinationAddressPrefix": "Internet",
+              "access": "Deny",
+              "priority": 999,
+              "direction": "Outbound"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Network/publicIPAddresses",
+      "apiVersion": "2020-05-01",
+      "name": "[variables('publicIpName')]",
+      "location": "[resourceGroup().location]",
+      "sku": {
+        "name": "Standard"
+      },
+      "properties": {
+        "publicIPAllocationMethod": "Static",
+        "publicIPAddressVersion": "IPv4",
+        "dnsSettings": {
+          "domainNameLabel": "[variables('dnsLabelPrefix')]"
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Network/virtualNetworks",
+      "apiVersion": "2020-06-01",
+      "name": "[variables('virtualNetworkName')]",
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": [
+            "10.0.0.0/16"
+          ]
+        },
+        "subnets": [
+          {
+            "name": "[variables('subnetName')]",
+            "properties": {
+              "addressPrefix": "10.0.0.0/24",
+              "networkSecurityGroup": {
+                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', format('{0}-NsG', parameters('prefix')))]"
+              },
+              "serviceEndpoints": [
+                {
+                  "service": "Microsoft.Storage"
+                },
+                {
+                  "service": "Microsoft.Sql"
+                },
+                {
+                  "service": "Microsoft.EventHub"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/networkSecurityGroups', format('{0}-NsG', parameters('prefix')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Web/serverfarms",
+      "apiVersion": "2020-10-01",
+      "name": "[format('{0}-HostingPlan', parameters('prefix'))]",
+      "location": "[resourceGroup().location]",
+      "sku": {
+        "name": "S1",
+        "tier": "Standard"
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2019-10-01",
+      "name": "[format('{0}-APIM', parameters('prefix'))]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "apimServiceName": {
+            "value": "[format('{0}-APIM', parameters('prefix'))]"
+          },
+          "apimPublisherEmail": {
+            "value": "[parameters('publisherEmail')]"
+          },
+          "apimPublisherName": {
+            "value": "[parameters('publisherName')]"
+          },
+          "apimSku": {
+            "value": "[parameters('sku')]"
+          },
+          "apimSkuCount": {
+            "value": "[parameters('skuCount')]"
+          },
+          "location": {
+            "value": "[resourceGroup().location]"
+          },
+          "publicIpAddressId": {
+            "value": "[resourceId('Microsoft.Network/publicIPAddresses', variables('publicIpName'))]"
+          },
+          "subnetRef": {
+            "value": "[variables('subnetRef')]"
+          },
+          "AzureADAppClientId": {
+            "value": "[parameters('AzureADAppClientId')]"
+          },
+          "AzureADAppClientSecret": {
+            "value": "[parameters('AzureADAppClientSecret')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.4.613.9944",
+              "templateHash": "8930476379436196978"
+            }
+          },
+          "parameters": {
+            "apimServiceName": {
+              "type": "string",
+              "metadata": {
+                "description": "The API Management instance service name"
+              }
+            },
+            "apimPublisherEmail": {
+              "type": "string",
+              "metadata": {
+                "description": "The email address of the owner of the APIM service"
+              }
+            },
+            "apimPublisherName": {
+              "type": "string",
+              "metadata": {
+                "description": "The name of the owner of the APIM service"
+              }
+            },
+            "apimSku": {
+              "type": "string",
+              "defaultValue": "Developer",
+              "allowedValues": [
+                "Developer",
+                "Standard",
+                "Premium"
+              ],
+              "metadata": {
+                "description": "The pricing tier of this API Management service"
+              }
+            },
+            "apimSkuCount": {
+              "type": "int",
+              "defaultValue": 1,
+              "maxValue": 2,
+              "metadata": {
+                "description": "The instance size of this API Management service."
+              }
+            },
+            "location": {
+              "type": "string",
+              "defaultValue": "[resourceGroup().location]",
+              "metadata": {
+                "description": "Location for all resources."
+              }
+            },
+            "publicIpAddressId": {
+              "type": "string",
+              "metadata": {
+                "description": "Id of the public IP address"
+              }
+            },
+            "subnetRef": {
+              "type": "string",
+              "metadata": {
+                "description": "subnet reference"
+              }
+            },
+            "artifactsBaseUrl": {
+              "type": "string",
+              "defaultValue": "https://raw.githubusercontent.com/microsoft/azure-api-management-monetization/main",
+              "metadata": {
+                "description": "The base URL for artifacts used in deployment."
+              }
+            },
+            "AzureADName": {
+              "type": "string",
+              "defaultValue": "thomasdemo01",
+              "metadata": {
+                "description": "Azure AD Tenant ID"
+              }
+            },
+            "AzureADAppClientId": {
+              "type": "string",
+              "defaultValue": "de3de3d5-106b-4697-9e80-66e9a01ec5bb",
+              "metadata": {
+                "description": "Azure AD client ID"
+              }
+            },
+            "AzureADAppClientSecret": {
+              "type": "string",
+              "defaultValue": "hiTo~KRn0-sTc6VVc38V~_5lD12.BuUa-F",
+              "metadata": {
+                "description": "Azure AD client Secret"
+              }
+            }
+          },
+          "functions": [],
+          "resources": [
+            {
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2019-10-01",
+              "name": "apimInstanceDeploy",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "serviceName": {
+                    "value": "[parameters('apimServiceName')]"
+                  },
+                  "publisherEmail": {
+                    "value": "[parameters('apimPublisherEmail')]"
+                  },
+                  "publisherName": {
+                    "value": "[parameters('apimPublisherName')]"
+                  },
+                  "publicIpAddressId": {
+                    "value": "[parameters('publicIpAddressId')]"
+                  },
+                  "subnetRef": {
+                    "value": "[parameters('subnetRef')]"
+                  },
+                  "sku": {
+                    "value": "[parameters('apimSku')]"
+                  },
+                  "skuCount": {
+                    "value": "[parameters('apimSkuCount')]"
+                  },
+                  "location": {
+                    "value": "[parameters('location')]"
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.4.613.9944",
+                      "templateHash": "17481853632317086656"
+                    }
+                  },
+                  "parameters": {
+                    "serviceName": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "The API Management instance service name"
+                      }
+                    },
+                    "publisherEmail": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "The email address of the owner of the service"
+                      }
+                    },
+                    "publisherName": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "The name of the owner of the service"
+                      }
+                    },
+                    "sku": {
+                      "type": "string",
+                      "defaultValue": "Developer",
+                      "allowedValues": [
+                        "Developer",
+                        "Standard",
+                        "Premium"
+                      ],
+                      "metadata": {
+                        "description": "The pricing tier of this API Management service"
+                      }
+                    },
+                    "skuCount": {
+                      "type": "int",
+                      "defaultValue": 1,
+                      "metadata": {
+                        "description": "The instance size of this API Management service."
+                      }
+                    },
+                    "location": {
+                      "type": "string",
+                      "defaultValue": "[resourceGroup().location]",
+                      "metadata": {
+                        "description": "Location for all resources."
+                      }
+                    },
+                    "publicIpAddressId": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Id of the public IP address"
+                      }
+                    },
+                    "subnetRef": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "subnet reference"
+                      }
+                    }
+                  },
+                  "functions": [],
+                  "resources": [
+                    {
+                      "type": "Microsoft.ApiManagement/service",
+                      "apiVersion": "2020-12-01",
+                      "name": "[parameters('serviceName')]",
+                      "location": "[parameters('location')]",
+                      "sku": {
+                        "name": "[parameters('sku')]",
+                        "capacity": "[parameters('skuCount')]"
+                      },
+                      "identity": {
+                        "type": "SystemAssigned"
+                      },
+                      "properties": {
+                        "publisherEmail": "[parameters('publisherEmail')]",
+                        "publisherName": "[parameters('publisherName')]",
+                        "virtualNetworkType": "External",
+                        "publicIpAddressId": "[parameters('publicIpAddressId')]",
+                        "virtualNetworkConfiguration": {
+                          "subnetResourceId": "[parameters('subnetRef')]"
+                        },
+                        "customProperties": {
+                          "Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Ciphers.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA": "false",
+                          "Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Ciphers.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA": "false",
+                          "Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Ciphers.TLS_RSA_WITH_AES_128_GCM_SHA256": "false",
+                          "Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Ciphers.TLS_RSA_WITH_AES_256_CBC_SHA256": "false",
+                          "Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Ciphers.TLS_RSA_WITH_AES_128_CBC_SHA256": "false",
+                          "Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Ciphers.TLS_RSA_WITH_AES_256_CBC_SHA": "false",
+                          "Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Ciphers.TLS_RSA_WITH_AES_128_CBC_SHA": "false",
+                          "Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Ciphers.TripleDes168": "false",
+                          "Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Protocols.Tls10": "false",
+                          "Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Protocols.Tls11": "false",
+                          "Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Protocols.Ssl30": "false",
+                          "Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Backend.Protocols.Tls10": "false",
+                          "Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Backend.Protocols.Tls11": "false",
+                          "Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Backend.Protocols.Ssl30": "false",
+                          "Microsoft.WindowsAzure.ApiManagement.Gateway.Protocols.Server.Http2": "false"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2019-10-01",
+              "name": "apimAuthenticateApiDeploy",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "apimServiceName": {
+                    "value": "[parameters('apimServiceName')]"
+                  },
+                  "serviceUrl": {
+                    "value": {
+                      "authenticate": "https://api.microsoft.com/billing"
+                    }
+                  },
+                  "artifactsBaseUrl": {
+                    "value": "[parameters('artifactsBaseUrl')]"
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.4.613.9944",
+                      "templateHash": "294891564793622495"
+                    }
+                  },
+                  "parameters": {
+                    "apimServiceName": {
+                      "type": "string"
+                    },
+                    "serviceUrl": {
+                      "type": "object"
+                    },
+                    "artifactsBaseUrl": {
+                      "type": "string"
+                    }
+                  },
+                  "functions": [],
+                  "resources": [
+                    {
+                      "type": "Microsoft.ApiManagement/service/apis/operations/policies",
+                      "apiVersion": "2019-01-01",
+                      "name": "[format('{0}/{1}/{2}/{3}', parameters('apimServiceName'), 'authenticate', 'token', 'policy')]",
+                      "properties": {
+                        "value": "[format('{0}/apiConfiguration/policies/apis/authenticate.yaml', parameters('artifactsBaseUrl'))]",
+                        "format": "rawxml-link"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.ApiManagement/service/apis', parameters('apimServiceName'), 'authenticate')]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.ApiManagement/service/apis",
+                      "apiVersion": "2019-01-01",
+                      "name": "[format('{0}/{1}', parameters('apimServiceName'), 'authenticate')]",
+                      "properties": {
+                        "isCurrent": false,
+                        "subscriptionRequired": true,
+                        "displayName": "authenticate",
+                        "serviceUrl": "[parameters('serviceUrl').billing]",
+                        "path": "auth",
+                        "protocols": [
+                          "https"
+                        ],
+                        "value": "[format('{0}/apiConfiguration/openApi/authenticate.yaml', parameters('artifactsBaseUrl'))]",
+                        "format": "openapi-link"
+                      }
+                    }
+                  ]
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Resources/deployments', 'apimInstanceDeploy')]",
+                "[resourceId('Microsoft.Resources/deployments', 'apimInstanceNamedValuesDeploy')]"
+              ]
+            },
+            {
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2019-10-01",
+              "name": "apimProductsDeploy",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "apimServiceName": {
+                    "value": "[parameters('apimServiceName')]"
+                  },
+                  "artifactsBaseUrl": {
+                    "value": "[parameters('artifactsBaseUrl')]"
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.4.613.9944",
+                      "templateHash": "13002020413128187793"
+                    }
+                  },
+                  "parameters": {
+                    "apimServiceName": {
+                      "type": "string"
+                    },
+                    "artifactsBaseUrl": {
+                      "type": "string"
+                    }
+                  },
+                  "functions": [],
+                  "resources": [
+                    {
+                      "type": "Microsoft.ApiManagement/service/products/policies",
+                      "apiVersion": "2019-01-01",
+                      "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'free', 'policy')]",
+                      "properties": {
+                        "value": "[format('{0}/apiConfiguration/policies/products/free.xml', parameters('artifactsBaseUrl'))]",
+                        "format": "xml-link"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.ApiManagement/service/products', parameters('apimServiceName'), 'free')]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.ApiManagement/service/products/policies",
+                      "apiVersion": "2019-01-01",
+                      "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'developer', 'policy')]",
+                      "properties": {
+                        "value": "[format('{0}/apiConfiguration/policies/products/developer.xml', parameters('artifactsBaseUrl'))]",
+                        "format": "xml-link"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.ApiManagement/service/products', parameters('apimServiceName'), 'developer')]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.ApiManagement/service/products/policies",
+                      "apiVersion": "2019-01-01",
+                      "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'payg', 'policy')]",
+                      "properties": {
+                        "value": "[format('{0}/apiConfiguration/policies/products/payg.xml', parameters('artifactsBaseUrl'))]",
+                        "format": "xml-link"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.ApiManagement/service/products', parameters('apimServiceName'), 'payg')]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.ApiManagement/service/products/policies",
+                      "apiVersion": "2019-01-01",
+                      "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'basic', 'policy')]",
+                      "properties": {
+                        "value": "[format('{0}/apiConfiguration/policies/products/basic.xml', parameters('artifactsBaseUrl'))]",
+                        "format": "xml-link"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.ApiManagement/service/products', parameters('apimServiceName'), 'basic')]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.ApiManagement/service/products/policies",
+                      "apiVersion": "2019-01-01",
+                      "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'standard', 'policy')]",
+                      "properties": {
+                        "value": "[format('{0}/apiConfiguration/policies/products/standard.xml', parameters('artifactsBaseUrl'))]",
+                        "format": "xml-link"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.ApiManagement/service/products', parameters('apimServiceName'), 'standard')]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.ApiManagement/service/products/policies",
+                      "apiVersion": "2019-01-01",
+                      "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'pro', 'policy')]",
+                      "properties": {
+                        "value": "[format('{0}/apiConfiguration/policies/products/pro.xml', parameters('artifactsBaseUrl'))]",
+                        "format": "xml-link"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.ApiManagement/service/products', parameters('apimServiceName'), 'pro')]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.ApiManagement/service/products/policies",
+                      "apiVersion": "2019-01-01",
+                      "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'enterprise', 'policy')]",
+                      "properties": {
+                        "value": "[format('{0}/apiConfiguration/policies/products/enterprise.xml', parameters('artifactsBaseUrl'))]",
+                        "format": "xml-link"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.ApiManagement/service/products', parameters('apimServiceName'), 'enterprise')]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.ApiManagement/service/products",
+                      "apiVersion": "2019-01-01",
+                      "name": "[format('{0}/{1}', parameters('apimServiceName'), 'admin')]",
+                      "properties": {
+                        "description": "Admin",
+                        "terms": "Terms here",
+                        "subscriptionRequired": true,
+                        "approvalRequired": true,
+                        "subscriptionsLimit": 1,
+                        "state": "published",
+                        "displayName": "Admin"
+                      }
+                    },
+                    {
+                      "type": "Microsoft.ApiManagement/service/products",
+                      "apiVersion": "2019-01-01",
+                      "name": "[format('{0}/{1}', parameters('apimServiceName'), 'free')]",
+                      "properties": {
+                        "description": "Free tier with a monthly quota of 100 calls.",
+                        "terms": "Terms here",
+                        "subscriptionRequired": true,
+                        "approvalRequired": false,
+                        "subscriptionsLimit": 1,
+                        "state": "published",
+                        "displayName": "Free"
+                      }
+                    },
+                    {
+                      "type": "Microsoft.ApiManagement/service/products",
+                      "apiVersion": "2019-01-01",
+                      "name": "[format('{0}/{1}', parameters('apimServiceName'), 'developer')]",
+                      "properties": {
+                        "description": "Developer tier with a free monthly quota of 100 calls and charges for overage.",
+                        "terms": "Terms here",
+                        "subscriptionRequired": true,
+                        "approvalRequired": true,
+                        "state": "published",
+                        "displayName": "Developer"
+                      }
+                    },
+                    {
+                      "type": "Microsoft.ApiManagement/service/products",
+                      "apiVersion": "2019-01-01",
+                      "name": "[format('{0}/{1}', parameters('apimServiceName'), 'payg')]",
+                      "properties": {
+                        "description": "Pay-as-you-go tier.",
+                        "terms": "Terms here",
+                        "subscriptionRequired": true,
+                        "approvalRequired": true,
+                        "state": "published",
+                        "displayName": "PAYG"
+                      }
+                    },
+                    {
+                      "type": "Microsoft.ApiManagement/service/products",
+                      "apiVersion": "2019-01-01",
+                      "name": "[format('{0}/{1}', parameters('apimServiceName'), 'basic')]",
+                      "properties": {
+                        "description": "Basic tier with a monthly quota of 50,000 calls.",
+                        "terms": "Terms here",
+                        "subscriptionRequired": true,
+                        "approvalRequired": true,
+                        "state": "published",
+                        "displayName": "Basic"
+                      }
+                    },
+                    {
+                      "type": "Microsoft.ApiManagement/service/products",
+                      "apiVersion": "2019-01-01",
+                      "name": "[format('{0}/{1}', parameters('apimServiceName'), 'standard')]",
+                      "properties": {
+                        "description": "Standard tier with a monthly quota of 100,000 calls and charges for overage.",
+                        "terms": "Terms here",
+                        "subscriptionRequired": true,
+                        "approvalRequired": true,
+                        "state": "published",
+                        "displayName": "Standard"
+                      }
+                    },
+                    {
+                      "type": "Microsoft.ApiManagement/service/products",
+                      "apiVersion": "2019-01-01",
+                      "name": "[format('{0}/{1}', parameters('apimServiceName'), 'pro')]",
+                      "properties": {
+                        "description": "Pro tier with a monthly quota of 500,000 calls and charges for overage.",
+                        "terms": "Terms here",
+                        "subscriptionRequired": true,
+                        "approvalRequired": true,
+                        "state": "published",
+                        "displayName": "Pro"
+                      }
+                    },
+                    {
+                      "type": "Microsoft.ApiManagement/service/products",
+                      "apiVersion": "2019-01-01",
+                      "name": "[format('{0}/{1}', parameters('apimServiceName'), 'enterprise')]",
+                      "properties": {
+                        "description": "Enterprise tier with a monthly quota of 1,500,000 calls. Overage is charged in units of 1,500,000 calls.",
+                        "terms": "Terms here",
+                        "subscriptionRequired": true,
+                        "approvalRequired": true,
+                        "state": "published",
+                        "displayName": "Enterprise"
+                      }
+                    }
+                  ]
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Resources/deployments', 'apimAuthenticateApiDeploy')]"
+              ]
+            },
+            {
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2019-10-01",
+              "name": "apimProductsApisDeploy",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "apimServiceName": {
+                    "value": "[parameters('apimServiceName')]"
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.4.613.9944",
+                      "templateHash": "3750403855471914648"
+                    }
+                  },
+                  "parameters": {
+                    "apimServiceName": {
+                      "type": "string"
+                    }
+                  },
+                  "functions": [],
+                  "resources": [
+                    {
+                      "type": "Microsoft.ApiManagement/service/products/apis",
+                      "apiVersion": "2020-12-01",
+                      "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'free', 'address')]"
+                    },
+                    {
+                      "type": "Microsoft.ApiManagement/service/products/apis",
+                      "apiVersion": "2020-12-01",
+                      "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'developer', 'address')]"
+                    },
+                    {
+                      "type": "Microsoft.ApiManagement/service/products/apis",
+                      "apiVersion": "2020-12-01",
+                      "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'payg', 'address')]"
+                    },
+                    {
+                      "type": "Microsoft.ApiManagement/service/products/apis",
+                      "apiVersion": "2020-12-01",
+                      "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'basic', 'address')]"
+                    },
+                    {
+                      "type": "Microsoft.ApiManagement/service/products/apis",
+                      "apiVersion": "2020-12-01",
+                      "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'standard', 'address')]"
+                    },
+                    {
+                      "type": "Microsoft.ApiManagement/service/products/apis",
+                      "apiVersion": "2020-12-01",
+                      "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'pro', 'address')]"
+                    },
+                    {
+                      "type": "Microsoft.ApiManagement/service/products/apis",
+                      "apiVersion": "2020-12-01",
+                      "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'enterprise', 'address')]"
+                    },
+                    {
+                      "type": "Microsoft.ApiManagement/service/products/apis",
+                      "apiVersion": "2020-12-01",
+                      "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'admin', 'address')]"
+                    }
+                  ]
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Resources/deployments', 'apimProductsDeploy')]"
+              ]
+            },
+            {
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2019-10-01",
+              "name": "apimProductsGroupsDeploy",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "apimServiceName": {
+                    "value": "[parameters('apimServiceName')]"
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.4.613.9944",
+                      "templateHash": "12753685058858406772"
+                    }
+                  },
+                  "parameters": {
+                    "apimServiceName": {
+                      "type": "string"
+                    }
+                  },
+                  "functions": [],
+                  "resources": [
+                    {
+                      "type": "Microsoft.ApiManagement/service/products/groups",
+                      "apiVersion": "2020-12-01",
+                      "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'free', 'guests')]"
+                    },
+                    {
+                      "type": "Microsoft.ApiManagement/service/products/groups",
+                      "apiVersion": "2020-12-01",
+                      "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'free', 'developers')]"
+                    },
+                    {
+                      "type": "Microsoft.ApiManagement/service/products/groups",
+                      "apiVersion": "2020-12-01",
+                      "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'developer', 'guests')]"
+                    },
+                    {
+                      "type": "Microsoft.ApiManagement/service/products/groups",
+                      "apiVersion": "2020-12-01",
+                      "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'developer', 'developers')]"
+                    },
+                    {
+                      "type": "Microsoft.ApiManagement/service/products/groups",
+                      "apiVersion": "2020-12-01",
+                      "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'payg', 'guests')]"
+                    },
+                    {
+                      "type": "Microsoft.ApiManagement/service/products/groups",
+                      "apiVersion": "2020-12-01",
+                      "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'payg', 'developers')]"
+                    },
+                    {
+                      "type": "Microsoft.ApiManagement/service/products/groups",
+                      "apiVersion": "2020-12-01",
+                      "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'basic', 'guests')]"
+                    },
+                    {
+                      "type": "Microsoft.ApiManagement/service/products/groups",
+                      "apiVersion": "2020-12-01",
+                      "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'basic', 'developers')]"
+                    },
+                    {
+                      "type": "Microsoft.ApiManagement/service/products/groups",
+                      "apiVersion": "2020-12-01",
+                      "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'standard', 'guests')]"
+                    },
+                    {
+                      "type": "Microsoft.ApiManagement/service/products/groups",
+                      "apiVersion": "2020-12-01",
+                      "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'standard', 'developers')]"
+                    },
+                    {
+                      "type": "Microsoft.ApiManagement/service/products/groups",
+                      "apiVersion": "2020-12-01",
+                      "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'pro', 'guests')]"
+                    },
+                    {
+                      "type": "Microsoft.ApiManagement/service/products/groups",
+                      "apiVersion": "2020-12-01",
+                      "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'pro', 'developers')]"
+                    },
+                    {
+                      "type": "Microsoft.ApiManagement/service/products/groups",
+                      "apiVersion": "2020-12-01",
+                      "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'enterprise', 'guests')]"
+                    },
+                    {
+                      "type": "Microsoft.ApiManagement/service/products/groups",
+                      "apiVersion": "2020-12-01",
+                      "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'enterprise', 'developers')]"
+                    }
+                  ]
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Resources/deployments', 'apimProductsDeploy')]"
+              ]
+            },
+            {
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2019-10-01",
+              "name": "apimInstanceNamedValuesDeploy",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "subscriptionId": {
+                    "value": "[subscription().subscriptionId]"
+                  },
+                  "resourceGroupName": {
+                    "value": "[resourceGroup().name]"
+                  },
+                  "apimServiceName": {
+                    "value": "[parameters('apimServiceName')]"
+                  },
+                  "artifactsBaseUrl": {
+                    "value": "[parameters('artifactsBaseUrl')]"
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.4.613.9944",
+                      "templateHash": "2041255039756600535"
+                    }
+                  },
+                  "parameters": {
+                    "apimServiceName": {
+                      "type": "string"
+                    },
+                    "subscriptionId": {
+                      "type": "string"
+                    },
+                    "resourceGroupName": {
+                      "type": "string"
+                    },
+                    "artifactsBaseUrl": {
+                      "type": "string"
+                    }
+                  },
+                  "functions": [],
+                  "resources": [
+                    {
+                      "type": "Microsoft.ApiManagement/service/properties",
+                      "apiVersion": "2019-01-01",
+                      "name": "[format('{0}/{1}', parameters('apimServiceName'), 'subscriptionId')]",
+                      "properties": {
+                        "secret": false,
+                        "displayName": "subscriptionId",
+                        "value": "[parameters('subscriptionId')]"
+                      }
+                    },
+                    {
+                      "type": "Microsoft.ApiManagement/service/properties",
+                      "apiVersion": "2019-01-01",
+                      "name": "[format('{0}/{1}', parameters('apimServiceName'), 'resourceGroupName')]",
+                      "properties": {
+                        "secret": false,
+                        "displayName": "resourceGroupName",
+                        "value": "[parameters('resourceGroupName')]"
+                      }
+                    },
+                    {
+                      "type": "Microsoft.ApiManagement/service/properties",
+                      "apiVersion": "2019-01-01",
+                      "name": "[format('{0}/{1}', parameters('apimServiceName'), 'apimServiceName')]",
+                      "properties": {
+                        "secret": false,
+                        "displayName": "apimServiceName",
+                        "value": "[parameters('apimServiceName')]"
+                      }
+                    },
+                    {
+                      "type": "Microsoft.ApiManagement/service/properties",
+                      "apiVersion": "2019-01-01",
+                      "name": "[format('{0}/{1}', parameters('apimServiceName'), 'monetizationModelsUrl')]",
+                      "properties": {
+                        "secret": false,
+                        "displayName": "monetizationModelsUrl",
+                        "value": "[format('{0}/payment/monetizationModels.json', parameters('artifactsBaseUrl'))]"
+                      }
+                    }
+                  ]
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Resources/deployments', 'apimInstanceDeploy')]"
+              ]
+            },
+            {
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2019-10-01",
+              "name": "apimGlobalServicePolicyDeploy",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "apimServiceName": {
+                    "value": "[parameters('apimServiceName')]"
+                  },
+                  "artifactsBaseUrl": {
+                    "value": "[parameters('artifactsBaseUrl')]"
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.4.613.9944",
+                      "templateHash": "7673434054897126282"
+                    }
+                  },
+                  "parameters": {
+                    "apimServiceName": {
+                      "type": "string"
+                    },
+                    "artifactsBaseUrl": {
+                      "type": "string"
+                    }
+                  },
+                  "functions": [],
+                  "resources": [
+                    {
+                      "type": "Microsoft.ApiManagement/service/policies",
+                      "apiVersion": "2019-01-01",
+                      "name": "[format('{0}/{1}', parameters('apimServiceName'), 'policy')]",
+                      "properties": {
+                        "value": "[format('{0}/apiConfiguration/policies/global.xml', parameters('artifactsBaseUrl'))]",
+                        "format": "xml-link"
+                      }
+                    }
+                  ]
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Resources/deployments', 'apimInstanceDeploy')]"
+              ]
+            },
+            {
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2019-10-01",
+              "name": "apimIdentities",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "apimServiceName": {
+                    "value": "[parameters('apimServiceName')]"
+                  },
+                  "AzureADName": {
+                    "value": "[parameters('AzureADName')]"
+                  },
+                  "AzureADAppClientId": {
+                    "value": "[parameters('AzureADAppClientId')]"
+                  },
+                  "AzureADAppClientSecret": {
+                    "value": "[parameters('AzureADAppClientSecret')]"
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.4.613.9944",
+                      "templateHash": "16107619460060979872"
+                    }
+                  },
+                  "parameters": {
+                    "apimServiceName": {
+                      "type": "string"
+                    },
+                    "AzureADName": {
+                      "type": "string",
+                      "defaultValue": "thomasdemo01"
+                    },
+                    "AzureADAppClientId": {
+                      "type": "string",
+                      "defaultValue": "de3de3d5-106b-4697-9e80-66e9a01ec5bb"
+                    },
+                    "AzureADAppClientSecret": {
+                      "type": "string",
+                      "defaultValue": "hiTo~KRn0-sTc6VVc38V~_5lD12.BuUa-F"
+                    }
+                  },
+                  "functions": [],
+                  "variables": {
+                    "signinTenant": "[format('{0}.onmicrosoft.com', parameters('AzureADName'))]",
+                    "authority": "[format('{0}.b2clogin.com', parameters('AzureADName'))]"
+                  },
+                  "resources": [
+                    {
+                      "type": "Microsoft.ApiManagement/service/identityProviders",
+                      "apiVersion": "2020-12-01",
+                      "name": "[format('{0}/{1}', parameters('apimServiceName'), 'aadB2C')]",
+                      "properties": {
+                        "allowedTenants": [],
+                        "signinTenant": "[variables('signinTenant')]",
+                        "authority": "[variables('authority')]",
+                        "clientId": "[parameters('AzureADAppClientId')]",
+                        "clientSecret": "[parameters('AzureADAppClientSecret')]",
+                        "signupPolicyName": "B2C_1_sign_in_up",
+                        "signinPolicyName": "B2C_1_sign_in_up",
+                        "profileEditingPolicyName": "B2C_1_profile",
+                        "passwordResetPolicyName": "B2C_1_Password_reset",
+                        "type": "aadB2C"
+                      }
+                    }
+                  ]
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Resources/deployments', 'apimInstanceDeploy')]"
+              ]
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/publicIPAddresses', variables('publicIpName'))]",
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('virtualNetworkName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2019-10-01",
+      "name": "[format('{0}-Credentials', parameters('prefix'))]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "prefix": {
+            "value": "[parameters('prefix')]"
+          },
+          "location": {
+            "value": "[resourceGroup().location]"
+          },
+          "hostingPlanname": {
+            "value": "[format('{0}-HostingPlan', parameters('prefix'))]"
+          },
+          "AzureADAppTenantId": {
+            "value": "[parameters('AzureADAppTenantId')]"
+          },
+          "AzureADAppClientId": {
+            "value": "[parameters('AzureADAppClientId')]"
+          },
+          "AzureADAppClientSecret": {
+            "value": "[parameters('AzureADAppClientSecret')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.4.613.9944",
+              "templateHash": "10028797625305973758"
+            }
+          },
+          "parameters": {
+            "prefix": {
+              "type": "string"
+            },
+            "location": {
+              "type": "string",
+              "defaultValue": "[resourceGroup().location]"
+            },
+            "hostingPlanname": {
+              "type": "string"
+            },
+            "AzureADAppTenantId": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure AD Tenant ID"
+              }
+            },
+            "AzureADAppClientId": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure AD client ID"
+              }
+            },
+            "AzureADAppClientSecret": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure AD client Secret"
+              }
+            },
+            "sku": {
+              "type": "string",
+              "defaultValue": "Standard_GRS",
+              "allowedValues": [
+                "Standard_LRS",
+                "Standard_GRS"
+              ]
+            }
+          },
+          "functions": [],
+          "resources": [
+            {
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2019-10-01",
+              "name": "[format('{0}storage', parameters('prefix'))]",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "sgName": {
+                    "value": "[format('{0}storage', parameters('prefix'))]"
+                  },
+                  "location": {
+                    "value": "[parameters('location')]"
+                  },
+                  "sku": {
+                    "value": "[parameters('sku')]"
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.4.613.9944",
+                      "templateHash": "14551063052285448621"
+                    }
+                  },
+                  "parameters": {
+                    "sgName": {
+                      "type": "string"
+                    },
+                    "location": {
+                      "type": "string",
+                      "defaultValue": "[resourceGroup().location]"
+                    },
+                    "sku": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "defaultValue": "StorageV2"
+                    }
+                  },
+                  "functions": [],
+                  "resources": [
+                    {
+                      "type": "Microsoft.Storage/storageAccounts",
+                      "apiVersion": "2021-02-01",
+                      "name": "[parameters('sgName')]",
+                      "location": "[parameters('location')]",
+                      "kind": "[parameters('kind')]",
+                      "sku": {
+                        "name": "[parameters('sku')]",
+                        "tier": "Standard"
+                      }
+                    }
+                  ],
+                  "outputs": {
+                    "storageAccountConnectionString": {
+                      "type": "string",
+                      "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};AccountKey={1};EndpointSuffix=core.windows.net', parameters('sgName'), listKeys(resourceId(resourceGroup().name, 'Microsoft.Storage/storageAccounts', parameters('sgName')), '2019-04-01').keys[0].value)]"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2019-10-01",
+              "name": "[format('{0}-functionApp', parameters('prefix'))]",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "location": {
+                    "value": "[parameters('location')]"
+                  },
+                  "functionAppName": {
+                    "value": "[format('{0}-Credentials', parameters('prefix'))]"
+                  },
+                  "planName": {
+                    "value": "[resourceId('Microsoft.Web/serverfarms', parameters('hostingPlanname'))]"
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.4.613.9944",
+                      "templateHash": "8676323357946361943"
+                    }
+                  },
+                  "parameters": {
+                    "location": {
+                      "type": "string"
+                    },
+                    "functionAppName": {
+                      "type": "string"
+                    },
+                    "planName": {
+                      "type": "string"
+                    }
+                  },
+                  "functions": [],
+                  "resources": [
+                    {
+                      "type": "Microsoft.Web/sites",
+                      "apiVersion": "2020-12-01",
+                      "name": "[parameters('functionAppName')]",
+                      "identity": {
+                        "type": "SystemAssigned"
+                      },
+                      "location": "[parameters('location')]",
+                      "kind": "functionapp",
+                      "properties": {
+                        "serverFarmId": "[parameters('planName')]"
+                      }
+                    }
+                  ],
+                  "outputs": {
+                    "prodFunctionAppName": {
+                      "type": "string",
+                      "value": "[parameters('functionAppName')]"
+                    },
+                    "productionTenantId": {
+                      "type": "string",
+                      "value": "[reference(resourceId('Microsoft.Web/sites', parameters('functionAppName')), '2020-12-01', 'full').identity.tenantId]"
+                    },
+                    "productionPrincipalId": {
+                      "type": "string",
+                      "value": "[reference(resourceId('Microsoft.Web/sites', parameters('functionAppName')), '2020-12-01', 'full').identity.principalId]"
+                    }
+                  }
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Resources/deployments', format('{0}storage', parameters('prefix')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2019-10-01",
+              "name": "[format('{0}-functionAppSettings', parameters('prefix'))]",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "dbConnectionStringSecretUri": {
+                    "value": "[reference(resourceId('Microsoft.Resources/deployments', format('{0}storage', parameters('prefix'))), '2019-10-01').outputs.storageAccountConnectionString.value]"
+                  },
+                  "functionAppName": {
+                    "value": "[reference(resourceId('Microsoft.Resources/deployments', format('{0}-functionApp', parameters('prefix'))), '2019-10-01').outputs.prodFunctionAppName.value]"
+                  },
+                  "storageAccountConnectionString": {
+                    "value": "[reference(resourceId('Microsoft.Resources/deployments', format('{0}storage', parameters('prefix'))), '2019-10-01').outputs.storageAccountConnectionString.value]"
+                  },
+                  "AzureADAppTenantId": {
+                    "value": "[parameters('AzureADAppTenantId')]"
+                  },
+                  "AzureADAppClientId": {
+                    "value": "[parameters('AzureADAppClientId')]"
+                  },
+                  "AzureADAppClientSecret": {
+                    "value": "[parameters('AzureADAppClientSecret')]"
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.4.613.9944",
+                      "templateHash": "232744792708177578"
+                    }
+                  },
+                  "parameters": {
+                    "functionAppName": {
+                      "type": "string"
+                    },
+                    "storageAccountConnectionString": {
+                      "type": "string"
+                    },
+                    "timeZone": {
+                      "type": "string",
+                      "defaultValue": "AUS Eastern Standard Time"
+                    },
+                    "dbConnectionStringSecretUri": {
+                      "type": "string"
+                    },
+                    "AzureADAppTenantId": {
+                      "type": "string"
+                    },
+                    "AzureADAppClientId": {
+                      "type": "string"
+                    },
+                    "AzureADAppClientSecret": {
+                      "type": "string"
+                    }
+                  },
+                  "functions": [],
+                  "resources": [
+                    {
+                      "type": "Microsoft.Web/sites/config",
+                      "apiVersion": "2018-11-01",
+                      "name": "[format('{0}/slotConfigNames', parameters('functionAppName'))]",
+                      "properties": {
+                        "appSettingNames": [
+                          "CustomerApiKey"
+                        ]
+                      }
+                    },
+                    {
+                      "type": "Microsoft.Web/sites/config",
+                      "apiVersion": "2018-11-01",
+                      "name": "[format('{0}/appsettings', parameters('functionAppName'))]",
+                      "properties": {
+                        "CustomerApiKey": "This is the production setting",
+                        "databaseConnectionString": "[parameters('dbConnectionStringSecretUri')]",
+                        "AzureWebJobsStorage": "[parameters('storageAccountConnectionString')]",
+                        "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING": "[parameters('storageAccountConnectionString')]",
+                        "WEBSITE_CONTENTSHARE": "[toLower(parameters('functionAppName'))]",
+                        "FUNCTIONS_EXTENSION_VERSION": "~3",
+                        "FUNCTIONS_WORKER_RUNTIME": "dotnet",
+                        "WEBSITE_TIME_ZONE": "[parameters('timeZone')]",
+                        "WEBSITE_ADD_SITENAME_BINDINGS_IN_APPHOST_CONFIG": 1,
+                        "AzureADAppTenantId": "[parameters('AzureADAppTenantId')]",
+                        "AzureADAppClientId": "[parameters('AzureADAppClientId')]",
+                        "AzureADAppClientSecret": "[parameters('AzureADAppClientSecret')]"
+                      }
+                    }
+                  ]
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Resources/deployments', format('{0}-functionApp', parameters('prefix')))]",
+                "[resourceId('Microsoft.Resources/deployments', format('{0}storage', parameters('prefix')))]"
+              ]
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/serverfarms', format('{0}-HostingPlan', parameters('prefix')))]",
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('virtualNetworkName'))]"
+      ]
+    }
+  ]
+}
