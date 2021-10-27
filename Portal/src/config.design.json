@@ -1,7 +1,7 @@
 {
     "environment": "development",
-    "managementApiUrl": "",
-    "managementApiAccessToken": "",
-    "backendUrl": "",
+    "managementApiUrl": "https://cfs-apim.management.azure-api.net",
+    "managementApiAccessToken": "SharedAccessSignature integration&202111181320&imB3iQ8NaiU7u1eyJMjE4iG0Ot8/HoG7YxExhCviH0vkkFiWz8O8d5p+khR6JoJyOurYIMCjg0v3g39VV5qV8w==",
+    "backendUrl": "https://cfs-apim.developer.azure-api.net",
     "useHipCaptcha": false
 }

@@ -1,5 +1,5 @@
 {
     "environment": "runtime",
-    "managementApiUrl": "",
-    "backendUrl": ""
+    "managementApiUrl": "https://cfs-apim.management.azure-api.net",
+    "backendUrl": "https://cfs-apim.developer.azure-api.net"
 }

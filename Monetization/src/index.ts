@@ -2,7 +2,6 @@ import express from "express";
 import dotenv from "dotenv";
 import { CronJob } from "cron";
 import { Billing } from "./controllers/Billing";
-import { AdyenBillingService } from "./controllers/Adyen";
 
 dotenv.config();
 
@@ -16,8 +15,8 @@ const job = async () => {
   const invoices: Invoice[] = await Billing.calculateInvoices(now.getMonth(), now.getFullYear());
 
   await Promise.all(invoices.map(async invoice => {
-
-    await AdyenBillingService.takePaymentFromUser(invoice);
+    // tslint:disable-next-line:no-console
+    console.log(invoice);
 
   }))
 };
